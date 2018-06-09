@@ -18,9 +18,9 @@ import invariant from 'fbjs/lib/invariant';
 import warning from 'fbjs/lib/warning';
 import checkPropTypes from 'prop-types/checkPropTypes';
 
-import {createCursor, pop, push} from './ReactFiberStack';
 import ReactDebugCurrentFiber from './ReactDebugCurrentFiber';
 import {startPhaseTimer, stopPhaseTimer} from './ReactDebugFiberPerf';
+import {createCursor, push, pop} from './ReactFiberStack';
 
 let warnedAboutMissingGetChildContext;
 
@@ -37,7 +37,7 @@ let didPerformWorkStackCursor: StackCursor<boolean> = createCursor(false);
 // pushed the next context provider, and now need to merge their contexts.
 let previousContext: Object = emptyObject;
 
-export function getUnmaskedContext(workInProgress: Fiber): Object {
+function getUnmaskedContext(workInProgress: Fiber): Object {
   const hasOwnContext = isContextProvider(workInProgress);
   if (hasOwnContext) {
     // If the fiber is a context provider itself, when we read its context
@@ -49,20 +49,20 @@ export function getUnmaskedContext(workInProgress: Fiber): Object {
   return contextStackCursor.current;
 }
 
-export function cacheContext(
+function cacheContext(
   workInProgress: Fiber,
   unmaskedContext: Object,
   maskedContext: Object,
-) {
+): void {
   const instance = workInProgress.stateNode;
   instance.__reactInternalMemoizedUnmaskedChildContext = unmaskedContext;
   instance.__reactInternalMemoizedMaskedChildContext = maskedContext;
 }
 
-export function getMaskedContext(
+function getMaskedContext(
   workInProgress: Fiber,
   unmaskedContext: Object,
-) {
+): Object {
   const type = workInProgress.type;
   const contextTypes = type.contextTypes;
   if (!contextTypes) {
@@ -105,19 +105,19 @@ export function getMaskedContext(
   return context;
 }
 
-export function hasContextChanged(): boolean {
+function hasContextChanged(): boolean {
   return didPerformWorkStackCursor.current;
 }
 
-export function isContextConsumer(fiber: Fiber): boolean {
+function isContextConsumer(fiber: Fiber): boolean {
   return fiber.tag === ClassComponent && fiber.type.contextTypes != null;
 }
 
-export function isContextProvider(fiber: Fiber): boolean {
+function isContextProvider(fiber: Fiber): boolean {
   return fiber.tag === ClassComponent && fiber.type.childContextTypes != null;
 }
 
-export function popContextProvider(fiber: Fiber): void {
+function popContextProvider(fiber: Fiber): void {
   if (!isContextProvider(fiber)) {
     return;
   }
@@ -126,18 +126,18 @@ export function popContextProvider(fiber: Fiber): void {
   pop(contextStackCursor, fiber);
 }
 
-export function popTopLevelContextObject(fiber: Fiber) {
+function popTopLevelContextObject(fiber: Fiber): void {
   pop(didPerformWorkStackCursor, fiber);
   pop(contextStackCursor, fiber);
 }
 
-export function pushTopLevelContextObject(
+function pushTopLevelContextObject(
   fiber: Fiber,
   context: Object,
   didChange: boolean,
 ): void {
   invariant(
-    contextStackCursor.cursor == null,
+    contextStackCursor.current === emptyObject,
     'Unexpected context found on stack. ' +
       'This error is likely caused by a bug in React. Please file an issue.',
   );
@@ -146,10 +146,7 @@ export function pushTopLevelContextObject(
   push(didPerformWorkStackCursor, didChange, fiber);
 }
 
-export function processChildContext(
-  fiber: Fiber,
-  parentContext: Object,
-): Object {
+function processChildContext(fiber: Fiber, parentContext: Object): Object {
   const instance = fiber.stateNode;
   const childContextTypes = fiber.type.childContextTypes;
 
@@ -211,7 +208,7 @@ export function processChildContext(
   return {...parentContext, ...childContext};
 }
 
-export function pushContextProvider(workInProgress: Fiber): boolean {
+function pushContextProvider(workInProgress: Fiber): boolean {
   if (!isContextProvider(workInProgress)) {
     return false;
   }
@@ -237,7 +234,7 @@ export function pushContextProvider(workInProgress: Fiber): boolean {
   return true;
 }
 
-export function invalidateContextProvider(
+function invalidateContextProvider(
   workInProgress: Fiber,
   didChange: boolean,
 ): void {
@@ -268,13 +265,7 @@ export function invalidateContextProvider(
   }
 }
 
-export function resetContext(): void {
-  previousContext = emptyObject;
-  contextStackCursor.current = emptyObject;
-  didPerformWorkStackCursor.current = false;
-}
-
-export function findCurrentUnmaskedContext(fiber: Fiber): Object {
+function findCurrentUnmaskedContext(fiber: Fiber): Object {
   // Currently this is only used with renderSubtreeIntoContainer; not sure if it
   // makes sense elsewhere
   invariant(
@@ -298,3 +289,19 @@ export function findCurrentUnmaskedContext(fiber: Fiber): Object {
   }
   return node.stateNode.context;
 }
+
+export {
+  getUnmaskedContext,
+  cacheContext,
+  getMaskedContext,
+  hasContextChanged,
+  isContextConsumer,
+  isContextProvider,
+  popContextProvider,
+  popTopLevelContextObject,
+  pushTopLevelContextObject,
+  processChildContext,
+  pushContextProvider,
+  invalidateContextProvider,
+  findCurrentUnmaskedContext,
+};

@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import invariant from 'fbjs/lib/invariant';
 import warning from 'fbjs/lib/warning';
 import {REACT_ELEMENT_TYPE} from 'shared/ReactSymbols';
 
@@ -109,7 +110,7 @@ function defineRefPropWarningGetter(props, displayName) {
  */
 const ReactElement = function(type, key, ref, self, source, owner, props) {
   const element = {
-    // This tag allow us to uniquely identify this as a React Element
+    // This tag allows us to uniquely identify this as a React Element
     $$typeof: REACT_ELEMENT_TYPE,
 
     // Built-in properties that belong on the element
@@ -266,7 +267,7 @@ export function createFactory(type) {
   // easily accessed on elements. E.g. `<Foo />.type === Foo`.
   // This should not be named `constructor` since this may not be the function
   // that created the element, and it may not even be a constructor.
-  // Legacy hook TODO: Warn if this is accessed
+  // Legacy hook: remove it
   factory.type = type;
   return factory;
 }
@@ -290,6 +291,12 @@ export function cloneAndReplaceKey(oldElement, newKey) {
  * See https://reactjs.org/docs/react-api.html#cloneelement
  */
 export function cloneElement(element, config, children) {
+  invariant(
+    !(element === null || element === undefined),
+    'React.cloneElement(...): The argument must be a React element, but you passed %s.',
+    element,
+  );
+
   let propName;
 
   // Original props are copied

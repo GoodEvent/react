@@ -1,6 +1,5 @@
 'use strict';
 
-const path = require('path');
 const forks = require('./forks');
 const bundleTypes = require('./bundles').bundleTypes;
 
@@ -28,12 +27,12 @@ const knownGlobals = Object.freeze({
 });
 
 // Given ['react'] in bundle externals, returns { 'react': 'React' }.
-function getPeerGlobals(externals, moduleType) {
+function getPeerGlobals(externals, bundleType) {
   const peerGlobals = {};
   externals.forEach(name => {
     if (
       !knownGlobals[name] &&
-      (moduleType === UMD_DEV || moduleType === UMD_PROD)
+      (bundleType === UMD_DEV || bundleType === UMD_PROD)
     ) {
       throw new Error('Cannot build UMD without a global name for: ' + name);
     }
@@ -44,9 +43,9 @@ function getPeerGlobals(externals, moduleType) {
 
 // Determines node_modules packages that are safe to assume will exist.
 function getDependencies(bundleType, entry) {
-  const packageJson = require(path.basename(
-    path.dirname(require.resolve(entry))
-  ) + '/package.json');
+  // Replaces any part of the entry that follow the package name (like
+  // "/server" in "react-dom/server") by the path to the package settings
+  const packageJson = require(entry.replace(/(\/.*)?$/, '/package.json'));
   // Both deps and peerDeps are assumed as accessible.
   return Array.from(
     new Set([
@@ -57,11 +56,16 @@ function getDependencies(bundleType, entry) {
 }
 
 // Hijacks some modules for optimization and integration reasons.
-function getForks(bundleType, entry) {
+function getForks(bundleType, entry, moduleType) {
   const forksForBundle = {};
   Object.keys(forks).forEach(srcModule => {
     const dependencies = getDependencies(bundleType, entry);
-    const targetModule = forks[srcModule](bundleType, entry, dependencies);
+    const targetModule = forks[srcModule](
+      bundleType,
+      entry,
+      dependencies,
+      moduleType
+    );
     if (targetModule === null) {
       return;
     }

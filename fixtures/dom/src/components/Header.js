@@ -63,6 +63,8 @@ class Header extends React.Component {
                 <option value="/error-handling">Error Handling</option>
                 <option value="/event-pooling">Event Pooling</option>
                 <option value="/custom-elements">Custom Elements</option>
+                <option value="/media-events">Media Events</option>
+                <option value="/pointer-events">Pointer Events</option>
               </select>
             </label>
             <label htmlFor="react_version">

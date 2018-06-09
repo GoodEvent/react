@@ -109,8 +109,6 @@ describe('ReactDOM', () => {
   });
 
   it('throws in render() if the mount callback is not a function', () => {
-    spyOnDev(console, 'error');
-
     function Foo() {
       this.a = 1;
       this.b = 2;
@@ -125,42 +123,44 @@ describe('ReactDOM', () => {
     }
 
     const myDiv = document.createElement('div');
-    expect(() => ReactDOM.render(<A />, myDiv, 'no')).toThrowError(
-      'Invalid argument passed as callback. Expected a function. Instead ' +
-        'received: no',
-    );
-    if (__DEV__) {
-      expect(console.error.calls.argsFor(0)[0]).toContain(
+    expect(() => {
+      expect(() => {
+        ReactDOM.render(<A />, myDiv, 'no');
+      }).toWarnDev(
         'render(...): Expected the last optional `callback` argument to be ' +
           'a function. Instead received: no.',
       );
-    }
-    expect(() => ReactDOM.render(<A />, myDiv, {foo: 'bar'})).toThrowError(
+    }).toThrowError(
       'Invalid argument passed as callback. Expected a function. Instead ' +
-        'received: [object Object]',
+        'received: no',
     );
-    if (__DEV__) {
-      expect(console.error.calls.argsFor(1)[0]).toContain(
+
+    expect(() => {
+      expect(() => {
+        ReactDOM.render(<A />, myDiv, {foo: 'bar'});
+      }).toWarnDev(
         'render(...): Expected the last optional `callback` argument to be ' +
           'a function. Instead received: [object Object].',
       );
-    }
-    expect(() => ReactDOM.render(<A />, myDiv, new Foo())).toThrowError(
+    }).toThrowError(
       'Invalid argument passed as callback. Expected a function. Instead ' +
         'received: [object Object]',
     );
-    if (__DEV__) {
-      expect(console.error.calls.argsFor(2)[0]).toContain(
+
+    expect(() => {
+      expect(() => {
+        ReactDOM.render(<A />, myDiv, new Foo());
+      }).toWarnDev(
         'render(...): Expected the last optional `callback` argument to be ' +
           'a function. Instead received: [object Object].',
       );
-      expect(console.error.calls.count()).toBe(3);
-    }
+    }).toThrowError(
+      'Invalid argument passed as callback. Expected a function. Instead ' +
+        'received: [object Object]',
+    );
   });
 
   it('throws in render() if the update callback is not a function', () => {
-    spyOnDev(console, 'error');
-
     function Foo() {
       this.a = 1;
       this.b = 2;
@@ -176,39 +176,43 @@ describe('ReactDOM', () => {
 
     const myDiv = document.createElement('div');
     ReactDOM.render(<A />, myDiv);
-    expect(() => ReactDOM.render(<A />, myDiv, 'no')).toThrowError(
-      'Invalid argument passed as callback. Expected a function. Instead ' +
-        'received: no',
-    );
-    if (__DEV__) {
-      expect(console.error.calls.argsFor(0)[0]).toContain(
+    expect(() => {
+      expect(() => {
+        ReactDOM.render(<A />, myDiv, 'no');
+      }).toWarnDev(
         'render(...): Expected the last optional `callback` argument to be ' +
           'a function. Instead received: no.',
       );
-    }
-    ReactDOM.render(<A />, myDiv); // Re-mount
-    expect(() => ReactDOM.render(<A />, myDiv, {foo: 'bar'})).toThrowError(
+    }).toThrowError(
       'Invalid argument passed as callback. Expected a function. Instead ' +
-        'received: [object Object]',
+        'received: no',
     );
-    if (__DEV__) {
-      expect(console.error.calls.argsFor(1)[0]).toContain(
+
+    ReactDOM.render(<A />, myDiv); // Re-mount
+    expect(() => {
+      expect(() => {
+        ReactDOM.render(<A />, myDiv, {foo: 'bar'});
+      }).toWarnDev(
         'render(...): Expected the last optional `callback` argument to be ' +
           'a function. Instead received: [object Object].',
       );
-    }
-    ReactDOM.render(<A />, myDiv); // Re-mount
-    expect(() => ReactDOM.render(<A />, myDiv, new Foo())).toThrowError(
+    }).toThrowError(
       'Invalid argument passed as callback. Expected a function. Instead ' +
         'received: [object Object]',
     );
-    if (__DEV__) {
-      expect(console.error.calls.argsFor(2)[0]).toContain(
+
+    ReactDOM.render(<A />, myDiv); // Re-mount
+    expect(() => {
+      expect(() => {
+        ReactDOM.render(<A />, myDiv, new Foo());
+      }).toWarnDev(
         'render(...): Expected the last optional `callback` argument to be ' +
           'a function. Instead received: [object Object].',
       );
-      expect(console.error.calls.count()).toBe(3);
-    }
+    }).toThrowError(
+      'Invalid argument passed as callback. Expected a function. Instead ' +
+        'received: [object Object]',
+    );
   });
 
   it('preserves focus', () => {
@@ -305,14 +309,9 @@ describe('ReactDOM', () => {
     const actual = [];
 
     function click(node) {
-      const fakeNativeEvent = function() {};
-      fakeNativeEvent.target = node;
-      fakeNativeEvent.path = [node, container];
-      ReactTestUtils.simulateNativeEventOnNode(
-        'topClick',
-        node,
-        fakeNativeEvent,
-      );
+      ReactTestUtils.Simulate.click(node, {
+        path: [node, container],
+      });
     }
 
     class Wrapper extends React.Component {
@@ -373,32 +372,30 @@ describe('ReactDOM', () => {
     }
   });
 
-  // https://github.com/facebook/react/issues/11689
-  it('should warn when attempting to inject an event plugin', () => {
-    spyOnDev(console, 'warn');
-    ReactDOM.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.EventPluginHub.injection.injectEventPluginsByName(
-      {
-        TapEventPlugin: {
-          extractEvents() {},
-        },
-      },
-    );
+  it('should not crash calling findDOMNode inside a functional component', () => {
+    const container = document.createElement('div');
+
+    class Component extends React.Component {
+      render() {
+        return <div />;
+      }
+    }
+
+    const instance = ReactTestUtils.renderIntoDocument(<Component />);
+    const App = () => {
+      ReactDOM.findDOMNode(instance);
+      return <div />;
+    };
+
     if (__DEV__) {
-      expect(console.warn.calls.count()).toBe(1);
-      expect(console.warn.calls.argsFor(0)[0]).toContain(
-        'Injecting custom event plugins (TapEventPlugin) is deprecated ' +
-          'and will not work in React 17+. Please update your code ' +
-          'to not depend on React internals. The stack trace for this ' +
-          'warning should reveal the library that is using them. ' +
-          'See https://github.com/facebook/react/issues/11689 for a discussion.',
-      );
+      ReactDOM.render(<App />, container);
     }
   });
 
   it('throws in DEV if jsdom is destroyed by the time setState() is called', () => {
-    spyOnDev(console, 'error');
     class App extends React.Component {
       state = {x: 1};
+      componentDidUpdate() {}
       render() {
         return <div />;
       }
@@ -414,6 +411,10 @@ describe('ReactDOM', () => {
       // This is roughly what happens if the test finished and then
       // an asynchronous callback tried to setState() after this.
       delete global.document;
+
+      // The error we're interested in is thrown by invokeGuardedCallback, which
+      // in DEV is used 1) to replay a failed begin phase, or 2) when calling
+      // lifecycle methods. We're triggering the second case here.
       const fn = () => instance.setState({x: 2});
       if (__DEV__) {
         expect(fn).toThrow(
@@ -431,6 +432,41 @@ describe('ReactDOM', () => {
     } finally {
       // Don't break other tests.
       Object.defineProperty(global, 'document', documentDescriptor);
+    }
+  });
+
+  it('warns when requestAnimationFrame is not polyfilled in the browser', () => {
+    const previousRAF = global.requestAnimationFrame;
+    try {
+      global.requestAnimationFrame = undefined;
+      jest.resetModules();
+      expect(() => require('react-dom')).toWarnDev(
+        'React depends on requestAnimationFrame.',
+      );
+    } finally {
+      global.requestAnimationFrame = previousRAF;
+    }
+  });
+
+  // We're just testing importing, not using it.
+  // It is important because even isomorphic components may import it.
+  it('can import findDOMNode in Node environment', () => {
+    const previousRAF = global.requestAnimationFrame;
+    const previousRIC = global.requestIdleCallback;
+    const prevWindow = global.window;
+    try {
+      global.requestAnimationFrame = undefined;
+      global.requestIdleCallback = undefined;
+      // Simulate the Node environment:
+      delete global.window;
+      jest.resetModules();
+      expect(() => {
+        require('react-dom');
+      }).not.toThrow();
+    } finally {
+      global.requestAnimationFrame = previousRAF;
+      global.requestIdleCallback = previousRIC;
+      global.window = prevWindow;
     }
   });
 });

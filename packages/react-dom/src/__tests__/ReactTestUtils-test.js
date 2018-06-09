@@ -35,6 +35,14 @@ describe('ReactTestUtils', () => {
     ReactTestUtils = require('react-dom/test-utils');
   });
 
+  it('Simulate should have locally attached media events', () => {
+    expect(Object.keys(ReactTestUtils.Simulate).sort()).toMatchSnapshot();
+  });
+
+  it('SimulateNative should have locally attached media events', () => {
+    expect(Object.keys(ReactTestUtils.SimulateNative).sort()).toMatchSnapshot();
+  });
+
   it('gives Jest mocks a passthrough implementation with mockComponent()', () => {
     class MockedComponent extends React.Component {
       render() {
@@ -282,7 +290,7 @@ describe('ReactTestUtils', () => {
       ReactTestUtils.Simulate.change(node);
 
       expect(obj.handler).toHaveBeenCalledWith(
-        jasmine.objectContaining({target: node}),
+        expect.objectContaining({target: node}),
       );
     });
 
@@ -318,7 +326,7 @@ describe('ReactTestUtils', () => {
       ReactTestUtils.Simulate.change(node);
 
       expect(obj.handler).toHaveBeenCalledWith(
-        jasmine.objectContaining({target: node}),
+        expect.objectContaining({target: node}),
       );
     });
 
@@ -329,7 +337,7 @@ describe('ReactTestUtils', () => {
         }
       }
 
-      const handler = jasmine.createSpy('spy');
+      const handler = jest.fn().mockName('spy');
       const shallowRenderer = createRenderer();
       const result = shallowRenderer.render(
         <SomeComponent handleClick={handler} />,
@@ -350,7 +358,7 @@ describe('ReactTestUtils', () => {
         }
       }
 
-      const handler = jasmine.createSpy('spy');
+      const handler = jest.fn().mockName('spy');
       const container = document.createElement('div');
       const instance = ReactDOM.render(
         <SomeComponent handleClick={handler} />,
@@ -386,7 +394,7 @@ describe('ReactTestUtils', () => {
 
     it('should set the type of the event', () => {
       let event;
-      const stub = jest.genMockFn().mockImplementation(e => {
+      const stub = jest.fn().mockImplementation(e => {
         e.persist();
         event = e;
       });
@@ -423,7 +431,7 @@ describe('ReactTestUtils', () => {
       ReactTestUtils.Simulate.change(input);
 
       expect(onChange).toHaveBeenCalledWith(
-        jasmine.objectContaining({target: input}),
+        expect.objectContaining({target: input}),
       );
     });
   });

@@ -12,6 +12,7 @@ import type {ReactPortal} from 'shared/ReactTypes';
 import type {Fiber} from 'react-reconciler/src/ReactFiber';
 import type {ExpirationTime} from 'react-reconciler/src/ReactFiberExpirationTime';
 
+import getComponentName from 'shared/getComponentName';
 import {Placement, Deletion} from 'shared/ReactTypeOfSideEffect';
 import {
   getIteratorFn,
@@ -26,6 +27,7 @@ import {
   HostPortal,
   Fragment,
 } from 'shared/ReactTypeOfWork';
+import {getStackAddendumByWorkInProgressFiber} from 'shared/ReactFiberComponentTreeHook';
 import emptyObject from 'fbjs/lib/emptyObject';
 import invariant from 'fbjs/lib/invariant';
 import warning from 'fbjs/lib/warning';
@@ -38,16 +40,20 @@ import {
   createFiberFromPortal,
 } from './ReactFiber';
 import ReactDebugCurrentFiber from './ReactDebugCurrentFiber';
+import {StrictMode} from './ReactTypeOfMode';
 
 const {getCurrentFiberStackAddendum} = ReactDebugCurrentFiber;
 
 let didWarnAboutMaps;
+let didWarnAboutStringRefInStrictMode;
 let ownerHasKeyUseWarning;
 let ownerHasFunctionTypeWarning;
 let warnForMissingKey = (child: mixed) => {};
 
 if (__DEV__) {
   didWarnAboutMaps = false;
+  didWarnAboutStringRefInStrictMode = {};
+
   /**
    * Warn if there's no key explicitly set on dynamic arrays of children or
    * object keys are not valid. This allows us to keep track of children between
@@ -92,9 +98,37 @@ if (__DEV__) {
 
 const isArray = Array.isArray;
 
-function coerceRef(current: Fiber | null, element: ReactElement) {
+function coerceRef(
+  returnFiber: Fiber,
+  current: Fiber | null,
+  element: ReactElement,
+) {
   let mixedRef = element.ref;
-  if (mixedRef !== null && typeof mixedRef !== 'function') {
+  if (
+    mixedRef !== null &&
+    typeof mixedRef !== 'function' &&
+    typeof mixedRef !== 'object'
+  ) {
+    if (__DEV__) {
+      if (returnFiber.mode & StrictMode) {
+        const componentName = getComponentName(returnFiber) || 'Component';
+        if (!didWarnAboutStringRefInStrictMode[componentName]) {
+          warning(
+            false,
+            'A string ref, "%s", has been found within a strict mode tree. ' +
+              'String refs are a source of potential bugs and should be avoided. ' +
+              'We recommend using createRef() instead.' +
+              '\n%s' +
+              '\n\nLearn more about using refs safely here:' +
+              '\nhttps://fb.me/react-strict-mode-string-ref',
+            mixedRef,
+            getStackAddendumByWorkInProgressFiber(returnFiber),
+          );
+          didWarnAboutStringRefInStrictMode[componentName] = true;
+        }
+      }
+    }
+
     if (element._owner) {
       const owner: ?Fiber = (element._owner: any);
       let inst;
@@ -117,6 +151,7 @@ function coerceRef(current: Fiber | null, element: ReactElement) {
       if (
         current !== null &&
         current.ref !== null &&
+        typeof current.ref === 'function' &&
         current.ref._stringRef === stringRef
       ) {
         return current.ref;
@@ -138,9 +173,12 @@ function coerceRef(current: Fiber | null, element: ReactElement) {
       );
       invariant(
         element._owner,
-        'Element ref was specified as a string (%s) but no owner was ' +
-          'set. You may have multiple copies of React loaded. ' +
-          '(details: https://fb.me/react-refs-must-have-owner).',
+        'Element ref was specified as a string (%s) but no owner was set. This could happen for one of' +
+          ' the following reasons:\n' +
+          '1. You may be adding a ref to a functional component\n' +
+          "2. You may be adding a ref to a component that was not created inside a component's render method\n" +
+          '3. You have multiple copies of React loaded\n' +
+          'See https://fb.me/react-refs-must-have-owner for more information.',
         mixedRef,
       );
     }
@@ -315,7 +353,7 @@ function ChildReconciler(shouldTrackSideEffects) {
       // Insert
       const created = createFiberFromText(
         textContent,
-        returnFiber.internalContextTag,
+        returnFiber.mode,
         expirationTime,
       );
       created.return = returnFiber;
@@ -337,7 +375,7 @@ function ChildReconciler(shouldTrackSideEffects) {
     if (current !== null && current.type === element.type) {
       // Move based on index
       const existing = useFiber(current, element.props, expirationTime);
-      existing.ref = coerceRef(current, element);
+      existing.ref = coerceRef(returnFiber, current, element);
       existing.return = returnFiber;
       if (__DEV__) {
         existing._debugSource = element._source;
@@ -348,10 +386,10 @@ function ChildReconciler(shouldTrackSideEffects) {
       // Insert
       const created = createFiberFromElement(
         element,
-        returnFiber.internalContextTag,
+        returnFiber.mode,
         expirationTime,
       );
-      created.ref = coerceRef(current, element);
+      created.ref = coerceRef(returnFiber, current, element);
       created.return = returnFiber;
       return created;
     }
@@ -372,7 +410,7 @@ function ChildReconciler(shouldTrackSideEffects) {
       // Insert
       const created = createFiberFromPortal(
         portal,
-        returnFiber.internalContextTag,
+        returnFiber.mode,
         expirationTime,
       );
       created.return = returnFiber;
@@ -396,7 +434,7 @@ function ChildReconciler(shouldTrackSideEffects) {
       // Insert
       const created = createFiberFromFragment(
         fragment,
-        returnFiber.internalContextTag,
+        returnFiber.mode,
         expirationTime,
         key,
       );
@@ -421,7 +459,7 @@ function ChildReconciler(shouldTrackSideEffects) {
       // node.
       const created = createFiberFromText(
         '' + newChild,
-        returnFiber.internalContextTag,
+        returnFiber.mode,
         expirationTime,
       );
       created.return = returnFiber;
@@ -433,17 +471,17 @@ function ChildReconciler(shouldTrackSideEffects) {
         case REACT_ELEMENT_TYPE: {
           const created = createFiberFromElement(
             newChild,
-            returnFiber.internalContextTag,
+            returnFiber.mode,
             expirationTime,
           );
-          created.ref = coerceRef(null, newChild);
+          created.ref = coerceRef(returnFiber, null, newChild);
           created.return = returnFiber;
           return created;
         }
         case REACT_PORTAL_TYPE: {
           const created = createFiberFromPortal(
             newChild,
-            returnFiber.internalContextTag,
+            returnFiber.mode,
             expirationTime,
           );
           created.return = returnFiber;
@@ -454,7 +492,7 @@ function ChildReconciler(shouldTrackSideEffects) {
       if (isArray(newChild) || getIteratorFn(newChild)) {
         const created = createFiberFromFragment(
           newChild,
-          returnFiber.internalContextTag,
+          returnFiber.mode,
           expirationTime,
           null,
         );
@@ -864,18 +902,15 @@ function ChildReconciler(shouldTrackSideEffects) {
 
     if (__DEV__) {
       // Warn about using Maps as children
-      if (typeof newChildrenIterable.entries === 'function') {
-        const possibleMap = (newChildrenIterable: any);
-        if (possibleMap.entries === iteratorFn) {
-          warning(
-            didWarnAboutMaps,
-            'Using Maps as children is unsupported and will likely yield ' +
-              'unexpected results. Convert it to a sequence/iterable of keyed ' +
-              'ReactElements instead.%s',
-            getCurrentFiberStackAddendum(),
-          );
-          didWarnAboutMaps = true;
-        }
+      if ((newChildrenIterable: any).entries === iteratorFn) {
+        warning(
+          didWarnAboutMaps,
+          'Using Maps as children is unsupported and will likely yield ' +
+            'unexpected results. Convert it to a sequence/iterable of keyed ' +
+            'ReactElements instead.%s',
+          getCurrentFiberStackAddendum(),
+        );
+        didWarnAboutMaps = true;
       }
 
       // First, validate keys.
@@ -1042,7 +1077,7 @@ function ChildReconciler(shouldTrackSideEffects) {
     deleteRemainingChildren(returnFiber, currentFirstChild);
     const created = createFiberFromText(
       textContent,
-      returnFiber.internalContextTag,
+      returnFiber.mode,
       expirationTime,
     );
     created.return = returnFiber;
@@ -1074,7 +1109,7 @@ function ChildReconciler(shouldTrackSideEffects) {
               : element.props,
             expirationTime,
           );
-          existing.ref = coerceRef(child, element);
+          existing.ref = coerceRef(returnFiber, child, element);
           existing.return = returnFiber;
           if (__DEV__) {
             existing._debugSource = element._source;
@@ -1094,7 +1129,7 @@ function ChildReconciler(shouldTrackSideEffects) {
     if (element.type === REACT_FRAGMENT_TYPE) {
       const created = createFiberFromFragment(
         element.props.children,
-        returnFiber.internalContextTag,
+        returnFiber.mode,
         expirationTime,
         element.key,
       );
@@ -1103,10 +1138,10 @@ function ChildReconciler(shouldTrackSideEffects) {
     } else {
       const created = createFiberFromElement(
         element,
-        returnFiber.internalContextTag,
+        returnFiber.mode,
         expirationTime,
       );
-      created.ref = coerceRef(currentFirstChild, element);
+      created.ref = coerceRef(returnFiber, currentFirstChild, element);
       created.return = returnFiber;
       return created;
     }
@@ -1149,7 +1184,7 @@ function ChildReconciler(shouldTrackSideEffects) {
 
     const created = createFiberFromPortal(
       portal,
-      returnFiber.internalContextTag,
+      returnFiber.mode,
       expirationTime,
     );
     created.return = returnFiber;
